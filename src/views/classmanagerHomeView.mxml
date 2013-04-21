@@ -1,7 +1,205 @@
 <?xml version="1.0" encoding="utf-8"?>
 <s:View xmlns:fx="http://ns.adobe.com/mxml/2009" 
-		xmlns:s="library://ns.adobe.com/flex/spark" title="HomeView">
+		xmlns:s="library://ns.adobe.com/flex/spark" title="Select Directory" xmlns:views="views.*"
+		creationComplete="view1_creationCompleteHandler(event)">
+	<s:actionContent>
+		<s:Button id="btnToGrade" label="To Grade" fontSize="19" visible="{defaultDirectorySelected}" 
+				  includeInLayout="{defaultDirectorySelected}"
+				  click="btnToGrade_clickHandler(event)"/>
+		<s:Button id="btnGraded" label="Already Graded" fontSize="19" visible="{defaultDirectorySelected}" 
+				  includeInLayout="{defaultDirectorySelected}"
+				  click="btnGraded_clickHandler(event)"/>
+		<s:Button id="btnBack" label="Back" fontSize="19" visible="false" 
+				  includeInLayout="false"
+				  click="btnBack_clickHandler(event)"/>
+	</s:actionContent>
+	<fx:Script>
+		<![CDATA[
+			import mx.collections.ArrayCollection;
+			import mx.collections.ArrayList;
+			import mx.events.FlexEvent;
+			
+			import spark.events.IndexChangeEvent;
+			
+			[Bindable]
+			private var listItemSelected:Boolean;
+			[Bindable]
+			private var defaultDirectorySelected:Boolean;
+			[Bindable]
+			private var file:File;
+			
+//			private var ConfigSO:SharedObject = SharedObject.getLocal("manager_config");
+			private var ConfigSO:SharedObject = SharedObject.getLocal("Config");
+			private function SetWorkingDir():void
+			{
+				// TODO Auto-generated method stub
+				file = new File();
+				file.browseForDirectory("Select the folder which you would like to use.");
+				file.addEventListener(Event.SELECT, onSelection);
+			}
+			
+			private function onSelection(evt:Event):void {
+				trace(file.nativePath);
+//				trace(EncryptedLocalStore.isSupported);
+//				return;
+//				ConfigSO.data.workingdir = file.nativePath;
+//				EncryptedLocalStore.removeItem("operationDirectory");
+				if(EncryptedLocalStore.isSupported) {
+					//var str:File = file;
+					var bytes:ByteArray = new ByteArray();
+					bytes.writeUTFBytes(file.nativePath);
+					EncryptedLocalStore.setItem('operationDirectory', bytes);
+				}
+				
+				proceedWithDirectorySelection();
+				
+//				footLabel.text = file.nativePath;
+//				listOfFiles = new ArrayCollection();
+//				
+//				getFileInternals(file);
+//				
+//				defaultDirectorySelected = true;
+//				this.title = "To Grade";
+//				trace("CHANGE the SCREEN to the lists  ---   "+listOfFiles.length);
+			}
+			
+			private function proceedWithDirectorySelection():void {
+				footLabel.text = file.nativePath;
+				tempFilesColl = new ArrayCollection();
+				
+				
+				getFileInternals(file);
+				
+				defaultDirectorySelected = true;
+				this.title = "To Grade";
+				trace("CHANGE the SCREEN to the lists  ---   "+listOfFiles.length);
+				
+				distributeData();
+			}
+			
+			private function distributeData():void {
+				
+			}
+			
+			[Bindable]
+			var listOfFiles:ArrayCollection;
+			[Bindable]
+			var gradeData:XML = <data/>;
+			var parentPath:String;
+			private var tempFilesColl:ArrayCollection;
+			private function getFileInternals(file:File):void {
+				trace(file.getDirectoryListing());
+				for(var i=0;i<file.getDirectoryListing().length;i++) {
+					var fl:File = file.getDirectoryListing()[i];
+					trace(fl.isDirectory + "        " + fl.nativePath);
+					if(fl.isDirectory) {
+						parentPath = fl.nativePath;
+						getFileInternals(fl);
+					} else {
+						if(fl.extension != 'db' && fl.name != 'grade.xml') {
+							var finfo:FileInformationVO = new FileInformationVO();
+							finfo.data = fl;
+							finfo.name = fl.name;
+							finfo.parent = parentPath;
+							tempFilesColl.addItem(finfo);
+						} else if(fl.name == 'grade.xml') {
+							var fs:FileStream = new FileStream();
+							fs.open(fl, FileMode.READ);
+							var sContent:String = fs.readUTFBytes(fs.bytesAvailable);
+							fs.close();
+							
+							trace(new XML(sContent).toString());
+							gradeData.appendChild(new XML(sContent).item);
+						}
+					}
+				}
+			}
+			
+			[Bindable]
+			private var info:FileInformationVO;
+			protected function list1_changeHandler(event:IndexChangeEvent):void
+			{
+				// TODO Auto-generated method stub
+				trace(event.currentTarget.selectedItem.name);
+				listItemSelected = true;
+				btnBack.visible = btnBack.includeInLayout = listItemSelected;
+				itemsList.visible = itemsList.includeInLayout = !listItemSelected;
+				btnGraded.visible = btnGraded.includeInLayout = !listItemSelected;
+				btnToGrade.visible = btnToGrade.includeInLayout = !listItemSelected;
+				
+				info = event.currentTarget.selectedItem;
+//				info.fileData = event.currentTarget.selectedItem;
+				
+				this.title = "Grade Assignment";
+				
+			}
+			
+			protected function btnToGrade_clickHandler(event:MouseEvent):void
+			{
+				// TODO Auto-generated method stub
+				this.title = "To Grade";
+			}
+			
+			protected function btnGraded_clickHandler(event:MouseEvent):void
+			{
+				// TODO Auto-generated method stub
+				this.title = "Already Graded";
+			}
+			
+			protected function btnBack_clickHandler(event:MouseEvent):void
+			{
+				// TODO Auto-generated method stub
+				this.title = "To Grade";
+				
+				listItemSelected = false;
+				event.currentTarget.visible = event.currentTarget.includeInLayout = listItemSelected;
+				itemsList.visible = itemsList.includeInLayout = !listItemSelected;
+				btnGraded.visible = btnGraded.includeInLayout = !listItemSelected;
+				btnToGrade.visible = btnToGrade.includeInLayout = !listItemSelected;
+			}
+			
+			protected function view1_creationCompleteHandler(event:FlexEvent):void
+			{
+				// TODO Auto-generated method stub
+//				trace(ConfigSO.data.workingdir);
+//				EncryptedLocalStore.removeItem("operationDirectory");
+				if(EncryptedLocalStore.isSupported) {
+					var storedValue:ByteArray = EncryptedLocalStore.getItem("operationDirectory");
+					if(storedValue) {
+						file = new File(storedValue.readUTFBytes(storedValue.length) as String);
+						trace(file.name);
+						
+						proceedWithDirectorySelection();
+					}
+				}
+			}
+			
+		]]>
+	</fx:Script>
 	<fx:Declarations>
 		<!-- Place non-visual elements (e.g., services, value objects) here -->
 	</fx:Declarations>
+	
+	<s:layout>
+		<s:VerticalLayout paddingBottom="5" paddingTop="5" paddingRight="5" paddingLeft="5"
+						  horizontalAlign="center"/>
+	</s:layout>
+	
+	<s:Button id="btnDirectory" label="Set Directory" click="SetWorkingDir()" 
+			  fontSize="19" visible="{!defaultDirectorySelected}" 
+			  includeInLayout="{!defaultDirectorySelected}"/>
+	
+	<s:List dataProvider="{listOfFiles}" labelField="name" width="100%" height="100%"
+			change="list1_changeHandler(event)" visible="{defaultDirectorySelected}" 
+			includeInLayout="{defaultDirectorySelected}"
+			id="itemsList"/>
+	
+	<views:GradeEditView width="100%" height="100%" visible="{listItemSelected}"
+						 includeInLayout="{listItemSelected}"
+						 selectedFileInfo="{info}"/>
+	
+	<s:HGroup width="100%" fontSize="12" visible="{defaultDirectorySelected}" 
+			  includeInLayout="{defaultDirectorySelected}">
+		<s:Label id="footLabel" width="100%"/>
+	</s:HGroup>
 </s:View>

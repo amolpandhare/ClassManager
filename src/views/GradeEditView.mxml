@@ -1,0 +1,100 @@
+<?xml version="1.0" encoding="utf-8"?>
+<s:VGroup xmlns:fx="http://ns.adobe.com/mxml/2009" 
+		xmlns:s="library://ns.adobe.com/flex/spark"
+		paddingBottom="5" paddingTop="5" paddingRight="5" paddingLeft="5"
+		horizontalAlign="center" >
+	<fx:Script>
+		<![CDATA[
+			import mx.rpc.events.FaultEvent;
+			import mx.rpc.events.ResultEvent;
+			[Bindable]
+			private var _selectedFileInfo:FileInformationVO;
+			[Bindable]
+			public function set selectedFileInfo(value:FileInformationVO):void {
+				_selectedFileInfo = value;
+				
+				getGradeData();
+			}
+			public function get selectedFileInfo():FileInformationVO {
+				return _selectedFileInfo;
+			}
+			
+			private var selFile:File;
+			private var parentFolder:File;
+			private var gradeFile:File;
+			
+			private function getGradeData():void {
+				selFile = new File(selectedFileInfo.data.nativePath);
+//				parentFolder = selFile.resolvePath('..');
+				gradeFile = new File (selectedFileInfo.parent + File.separator + "grade.xml");
+				if(gradeFile.exists) {
+					service.url = gradeFile.url;
+					service.send();
+				}
+			}
+			
+			protected function label1_clickHandler(event:MouseEvent):void
+			{
+				// TODO Auto-generated method stub
+				trace("LAUNCH THE SELECTED FILE HERE...");
+//				var selFile:File = new File(selectedFileInfo.fileUrl);
+				selFile.openWithDefaultApplication();
+			}
+			
+			protected function btnSave_clickHandler(event:MouseEvent):void
+			{
+				// TODO Auto-generated method stub
+				var fDataStream:FileStream;
+//				var selFile:File = new File(selectedFileInfo.fileUrl);
+//				var textfile:File = new File (selFile.parent.nativePath + File.separator + "grade.xml");
+				fDataStream = new FileStream();
+				fDataStream.open(gradeFile, FileMode.WRITE); 
+				
+				var str:String = "<gradeData><item><file>"+selectedFileInfo.name+"</file><comment>"+txtMessage.text+"</comment><grade>"+txtGrade.text+"</grade></item></gradeData>";
+				fDataStream.writeUTFBytes(str);
+				fDataStream.close();
+			}
+			
+			private var gradeData:XML;
+			protected function service_resultHandler(event:ResultEvent):void
+			{
+				// TODO Auto-generated method stub
+				trace((event.result as XML).toString());
+				gradeData = event.result as XML;
+				
+				var itemNode:XMLList = gradeData.item.(file == selectedFileInfo.name);
+				if(itemNode) {
+					trace(itemNode.file);
+					selectedFileInfo.comment = itemNode.comment;
+					selectedFileInfo.grade = itemNode.grade;
+				}
+			}
+			
+			protected function service_faultHandler(event:FaultEvent):void
+			{
+				// TODO Auto-generated method stub
+				
+			}
+			
+		]]>
+	</fx:Script>
+	<fx:Declarations>
+		<!-- Place non-visual elements (e.g., services, value objects) here -->
+		<s:HTTPService id="service" result="service_resultHandler(event)"
+					   fault="service_faultHandler(event)" showBusyCursor="true"
+					   resultFormat="e4x" />
+	</fx:Declarations>
+
+	<s:Label text="{selectedFileInfo.name}" width="100%" textDecoration="underline"
+			 click="label1_clickHandler(event)" buttonMode="true"/>
+	
+	<s:Label text="Message" width="100%" />
+	<s:TextArea id="txtMessage" width="100%" text="{selectedFileInfo.comment}"/>
+	<s:Label  text="Grade" width="100%" />
+	<s:TextInput id="txtGrade" width="100%" text="{selectedFileInfo.grade}"/>
+	<s:HGroup width="100%" horizontalAlign="center" >
+		<s:Button id="btnSave" label="Save" click="btnSave_clickHandler(event)"/>
+		<s:Button id="btnSkip" label="Skip" />
+		<s:Button id="btnDelete" label="Delete Dir"/>
+	</s:HGroup>
+</s:VGroup>
